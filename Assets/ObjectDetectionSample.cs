@@ -1,119 +1,76 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using Niantic.Lightship.AR.ObjectDetection;
 using UnityEngine;
 
 public class ObjectDetectionSample : MonoBehaviour
 {
-    [SerializeField] private float _probabilityThreshold = .5f;
+    // Diese Variable wird jetzt NUR noch durch die Initialize-Methode gesetzt.
+    private ARObjectDetectionManager _objectDetectionManager;
 
-    [SerializeField] private ARObjectDetectionManager _objectDetectionManager;
-    private bool _isDetectionRunning = false;
+    public static event Action<string> OnObjectRecognized;
 
-    private Color[] colors = new[]
+    // Wir brauchen den Canvas hier nicht mehr, das kann das UI-Skript selbst verwalten.
+
+    // Die Initialize-Methode ist der einzige Weg, wie dieses Skript seinen Manager bekommt.
+    public void Initialize(ARObjectDetectionManager manager)
     {
-        Color.red,
-        Color.blue,
-        Color.green,
-        Color.yellow,
-        Color.magenta,
-        Color.cyan,
-        Color.white,
-        Color.black
-    };
-
-
-
-    [SerializeField] private DrawRect _drawRect;
-
-    private Canvas _canvas;
-
-
-    private void Awake()
-    {
-        _canvas = FindObjectOfType<Canvas>();
+        if (manager == null)
+        {
+            Debug.LogError("Der übergebene ARObjectDetectionManager ist null!", this);
+            return;
+        }
+        Debug.Log("ObjectDetectionSample wurde erfolgreich initialisiert.", this);
+        _objectDetectionManager = manager;
     }
 
-
-    // --- NEUE ÖFFENTLICHE FUNKTIONEN ---
-    public void StartDetection()
+    // OnEnable wird aufgerufen, wenn der UIManager das Panel aktiviert.
+    private void OnEnable()
     {
-        if (_isDetectionRunning) return; // Nicht doppelt starten
+        if (_objectDetectionManager == null)
+        {
+            Debug.LogError("ARObjectDetectionManager ist NICHT zugewiesen! UIManager hat Initialize() nicht korrekt aufgerufen.", this);
+            return;
+        }
 
-        Debug.Log("ObjectDetectionSample: Starte die Erkennung.");
-        _isDetectionRunning = true;
-        _objectDetectionManager.enabled = true;
-        _objectDetectionManager.MetadataInitialized += ObjectDetectionManagerOnMetadataInitialized;
-
-        // Manchmal muss man die Events neu abonnieren, falls sie in OnDisable entfernt wurden
-        _objectDetectionManager.ObjectDetectionsUpdated += ObjectDetectionManagerOnObjectDetectionsUpdated;
+        Debug.Log("ObjectDetectionSample: Skript aktiviert. Starte Lauschen auf Metadaten.");
+        // WICHTIG: Wir aktivieren nicht mehr den Manager selbst, sondern lauschen nur auf seine Events.
+        // Der UIManager ist dafür verantwortlich, ihn zu aktivieren.
+        _objectDetectionManager.MetadataInitialized += OnMetadataInitialized;
     }
 
-    public void StopDetection()
+    // OnDisable wird aufgerufen, wenn der UIManager das Panel deaktiviert.
+    private void OnDisable()
     {
-        if (!_isDetectionRunning) return; // Nicht stoppen, wenn es nicht läuft
+        if (_objectDetectionManager == null) return;
 
-        Debug.Log("ObjectDetectionSample: Stoppe die Erkennung.");
-        _isDetectionRunning = false;
-        _objectDetectionManager.enabled = false;
-        _objectDetectionManager.ObjectDetectionsUpdated -= ObjectDetectionManagerOnObjectDetectionsUpdated;
-        // MetadataInitialized muss man seltener entfernen, aber zur Sicherheit:
-        _objectDetectionManager.MetadataInitialized -= ObjectDetectionManagerOnMetadataInitialized;
+        Debug.Log("ObjectDetectionSample: Skript deaktiviert. Stoppe Lauschen.");
+        // Wichtig: Immer die Events abbestellen, die man abonniert hat.
+        _objectDetectionManager.MetadataInitialized -= OnMetadataInitialized;
+        _objectDetectionManager.ObjectDetectionsUpdated -= OnObjectDetectionsUpdated;
     }
 
-    private void OnDisable() // WICHTIG: Stoppt die Erkennung, wenn das GameObject deaktiviert wird
+    private void OnMetadataInitialized(ARObjectDetectionModelEventArgs obj)
     {
-        StopDetection();
+        Debug.Log("Metadaten initialisiert. Lausche jetzt auf Objekterkennungs-Updates.");
+        _objectDetectionManager.ObjectDetectionsUpdated += OnObjectDetectionsUpdated;
     }
 
-    private void OnDestroy()
+    private void OnObjectDetectionsUpdated(ARObjectDetectionsUpdatedEventArgs obj)
     {
-           StopDetection();
-    }
-
-    private void ObjectDetectionManagerOnMetadataInitialized(ARObjectDetectionModelEventArgs obj)
-    {
-        _objectDetectionManager.ObjectDetectionsUpdated += ObjectDetectionManagerOnObjectDetectionsUpdated;
-    }
-
-    private void ObjectDetectionManagerOnObjectDetectionsUpdated(ARObjectDetectionsUpdatedEventArgs obj)
-    {
-        string resultString = "";
-        float _confidence = 0;
-        string _name = "";
-        var result = obj.Results;
-
-        if (result == null)
+        if (obj.Results == null || obj.Results.Count == 0)
             return;
 
-        _drawRect.ClearRects();
-
-        for (int i = 0; i < result.Count; i++)
+        foreach (var detection in obj.Results)
         {
-            var detection = result[i];
-            var categorization = detection.GetConfidentCategorizations(.5f);
-
-            if (categorization.Count <= 0)
+            var categorizations = detection.GetConfidentCategorizations(0.5f);
+            if (categorizations.Count > 0)
             {
-                break;
+                categorizations.Sort((a, b) => b.Confidence.CompareTo(a.Confidence));
+                var bestCategory = categorizations[0];
+
+                Debug.Log($"Objekt erkannt: '{bestCategory.CategoryName}'. Sende Event...");
+                OnObjectRecognized?.Invoke(bestCategory.CategoryName);
             }
-
-            categorization.Sort((a, b) => b.Confidence.CompareTo(a.Confidence));
-
-
-            var categoryToDisplay = categorization[0];
-            _confidence = categoryToDisplay.Confidence;
-            _name = categoryToDisplay.CategoryName;
-
-            int h = Mathf.FloorToInt(_canvas.GetComponent<RectTransform>().rect.height);
-            int w = Mathf.FloorToInt(_canvas.GetComponent<RectTransform>().rect.width);
-
-            var rect = result[i].CalculateRect(w,h,Screen.orientation);
-            resultString = $"{_name} : {_confidence}\n";
-            _drawRect.CreateRect(rect, colors[i % colors.Length], resultString);
         }
     }
-
-   
 }

@@ -9,8 +9,9 @@ public class DrawRect : MonoBehaviour
 
     private List<UIRectObject> _rectObjects = new();
     private List<int> _openIndices = new();
+}
 
-    public void CreateRect(Rect rect, Color color, string text)
+   /* public void CreateRect(Rect rect, Color color, string text)
     {
         if (_openIndices.Count == 0)
         {
@@ -41,4 +42,4 @@ public class DrawRect : MonoBehaviour
         }
     }
 
-}
+}*/
