@@ -1,20 +1,23 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using TMPro;
 
+
 public class PoetryInteractionManager : MonoBehaviour
 {
-    [Header("UI Verknüpfungen")]
+    [Header("UI Verknï¿½pfungen")]
     public GameObject wordButtonPrefab;
     public Transform liveWordContainer;
     public Transform sidebarContainer;
     public GameObject poemDisplayPanel;
     public TextMeshProUGUI poemText;
 
+
     private List<string> collectedWords = new List<string>();
     private const int MAX_COLLECTED_WORDS = 6;
     private HashSet<string> currentlyDisplayedWords = new HashSet<string>();
+
 
     /// <summary>
     /// Startet das Lauschen auf Objekterkennungs-Events.
@@ -26,6 +29,7 @@ public class PoetryInteractionManager : MonoBehaviour
         ObjectDetectionSample.OnObjectRecognized += HandleObjectRecognized;
     }
 
+
     /// <summary>
     /// Beendet das Lauschen auf Objekterkennungs-Events.
     /// Wird vom UIManager aufgerufen, wenn die AR-Ansicht verlassen wird.
@@ -36,9 +40,10 @@ public class PoetryInteractionManager : MonoBehaviour
         ObjectDetectionSample.OnObjectRecognized -= HandleObjectRecognized;
     }
 
+
     /// <summary>
-    /// Setzt alle angezeigten und gesammelten Wörter zurück.
-    /// Sorgt für einen sauberen Zustand beim erneuten Betreten der AR-Ansicht.
+    /// Setzt alle angezeigten und gesammelten Wï¿½rter zurï¿½ck.
+    /// Sorgt fï¿½r einen sauberen Zustand beim erneuten Betreten der AR-Ansicht.
     /// </summary>
     public void ClearAllWords()
     {
@@ -49,15 +54,17 @@ public class PoetryInteractionManager : MonoBehaviour
         currentlyDisplayedWords.Clear();
     }
 
+
     /// <summary>
-    /// Diese Methode wird ausgeführt, wenn das OnObjectRecognized-Event empfangen wird.
+    /// Diese Methode wird ausgefï¿½hrt, wenn das OnObjectRecognized-Event empfangen wird.
     /// </summary>
     private void HandleObjectRecognized(string detectedName)
     {
         // =========================================================================
-        // DIES IST DIE ENTSCHEIDENDE TEST-ZEILE, DIE ICH HINZUGEFÜGT HABE:
+        // DIES IST DIE ENTSCHEIDENDE TEST-ZEILE, DIE ICH HINZUGEFï¿½GT HABE:
         Debug.Log($"EVENT EMPFANGEN! Wort: '{detectedName}'. Versuche jetzt, den Button zu erstellen.");
         // =========================================================================
+
 
         if (!currentlyDisplayedWords.Contains(detectedName))
         {
@@ -65,12 +72,14 @@ public class PoetryInteractionManager : MonoBehaviour
             foreach (Transform child in liveWordContainer) { Destroy(child.gameObject); }
             currentlyDisplayedWords.Clear();
 
-            // Sicherheitsprüfung: Stelle sicher, dass die Prefab-Referenz existiert.
+
+            // Sicherheitsprï¿½fung: Stelle sicher, dass die Prefab-Referenz existiert.
             if (wordButtonPrefab == null || liveWordContainer == null)
             {
                 Debug.LogError("FEHLER: WordButtonPrefab oder LiveWordContainer sind im Inspector nicht zugewiesen!", this);
                 return;
             }
+
 
             GameObject wordButtonObj = Instantiate(wordButtonPrefab, liveWordContainer);
             wordButtonObj.GetComponentInChildren<TextMeshProUGUI>().text = detectedName;
@@ -78,6 +87,7 @@ public class PoetryInteractionManager : MonoBehaviour
             currentlyDisplayedWords.Add(detectedName);
         }
     }
+
 
     private void CollectWord(string word, GameObject buttonToMove)
     {
@@ -95,14 +105,16 @@ public class PoetryInteractionManager : MonoBehaviour
         currentlyDisplayedWords.Remove(word);
     }
 
+
     private void ShowPoemFor(string word)
     {
-        Debug.Log("Zeige Gedicht für das Wort: " + word);
-        // Hier kommt später die Logik, um das echte Gedicht aus deiner Datenbank zu holen.
-        string poem = $"Dies ist ein Platzhalter-Gedicht für das Wort '{word}'.";
+        Debug.Log("Zeige Gedicht fï¿½r das Wort: " + word);
+        // Hier kommt spï¿½ter die Logik, um das echte Gedicht aus deiner Datenbank zu holen.
+        string poem = $"Dies ist ein Platzhalter-Gedicht fï¿½r das Wort '{word}'.";
         poemText.text = poem;
         poemDisplayPanel.SetActive(true);
     }
+
 
     public void ClosePoemPanel()
     {

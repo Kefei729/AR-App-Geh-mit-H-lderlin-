@@ -1,39 +1,45 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using Niantic.Lightship.AR.ObjectDetection;
 using UnityEngine.XR.ARFoundation;
 
 public class UIManager : MonoBehaviour
 {
-    [Header("UI Panels")]
+    [Header("1. UI Panels")]
     public GameObject mainMenuPanel;
-    public GameObject objectDetectionPanel;
+    public GameObject objectDetectionPanel; // The AR View
     public GameObject galleryPanel;
     public GameObject helpPanel;
     public GameObject ARHelpPanel;
     public GameObject PoemDisplayPanel;
 
-    [Header("AR System Control")]
-    // Die Referenz zu deinem Skript, das die Logik steuert.
-    public ObjectDetectionSample objectDetectionSample; // ACHTUNG: Der Name wurde zur Eindeutigkeit angepasst.
+    [Header("Tutorial Settings")]
+    // Drag your "DynamicTutorialPanel" here
+    public GameObject tutorialPanel;
+    private const string TUTORIAL_KEY = "HasSeenTutorial"; // Key to save progress
 
-    // Die Referenz zum AR Manager, den wir "injizieren" müssen.
+    [Header("2. AR System Control")]
+    // The script that handles Lightship logic
+    public ObjectDetectionSample objectDetectionSample;
+    // The AR Manager component
     public ARObjectDetectionManager arObjectDetectionManager;
-
-    // Die Referenz zur Kamera, um den Hintergrund zu steuern.
+    // The AR Camera Background (we disable this in menus to save battery)
     public ARCameraBackground arCameraBackground;
     public ARSession arSession;
 
-    [Header("Logik-Manager")]
+    [Header("3. Logic Managers")]
     public PoetryInteractionManager poetryInteractionManager;
+    public PhotoManager photoManager;
+
+    // --- INTERNAL STATE ---
+    private bool wasInARMode = false;
 
     void Start()
     {
-        // Stelle sicher, dass das objectDetectionPanel am Anfang deaktiviert ist,
-        // damit sein 'Awake' oder 'OnEnable' nicht zu früh ausgelöst wird.
-        if (objectDetectionPanel != null)
-            objectDetectionPanel.SetActive(false);
+        // Ensure panels are set correctly on app start
+        if (objectDetectionPanel != null) objectDetectionPanel.SetActive(false);
+        if (tutorialPanel != null) tutorialPanel.SetActive(false);
 
-        // Starte im Hauptmenü. Diese Methode deaktiviert auch alle AR-Systeme.
+        // Start in the Main Menu
         ShowMainMenu();
 
         if (poetryInteractionManager != null)
@@ -42,48 +48,96 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    // --- ÖFFENTLICHE FUNKTIONEN, DIE VON DEN BUTTONS AUFGERUFEN WERDEN ---
+    // =========================================================
+    //               PUBLIC BUTTON FUNCTIONS
+    // =========================================================
 
+    // Button: "Start Experience" in Main Menu
     public void StartObjectDetection()
     {
-        ShowObjectDetection();
+        ShowObjectDetection(isReturningFromGallery: false);
     }
 
+    // Button: "Back" or "Home"
     public void GoToMainMenu()
     {
         ShowMainMenu();
     }
 
+    // Button: Camera Icon
+    public void OnCaptureButtonClick()
+    {
+        if (photoManager != null)
+        {
+            photoManager.CaptureAndSaveInternal();
+        }
+        else
+        {
+            Debug.LogError("PhotoManager is not assigned in UIManager!");
+        }
+    }
+
+    // Called by TutorialManager when the animation finishes
+    public void CloseTutorial()
+    {
+        if (tutorialPanel != null)
+        {
+            tutorialPanel.SetActive(false);
+
+            // Mark as seen so it doesn't show again (optional)
+            PlayerPrefs.SetInt(TUTORIAL_KEY, 1);
+            PlayerPrefs.Save();
+
+            // NOW start the real AR word detection
+            if (poetryInteractionManager != null)
+            {
+                poetryInteractionManager.StartListening();
+            }
+        }
+    }
+
+    // Button: Gallery Icon
     public void ToggleGallery()
     {
         if (galleryPanel != null && galleryPanel.activeSelf)
         {
-            ShowMainMenu();
+            // CLOSING GALLERY
+            if (wasInARMode)
+            {
+                ShowObjectDetection(isReturningFromGallery: true);
+            }
+            else
+            {
+                ShowMainMenu();
+            }
         }
         else
         {
+            // OPENING GALLERY
+            if (objectDetectionPanel != null && objectDetectionPanel.activeSelf)
+            {
+                wasInARMode = true;
+            }
+            else
+            {
+                wasInARMode = false;
+            }
+
             ShowGallery();
         }
     }
 
     public void ToggleHelp()
     {
-        if (helpPanel != null && helpPanel.activeSelf)
-        {
-            ShowMainMenu();
-        }
-        else
-        {
-            ShowHelp();
-        }
+        if (helpPanel != null && helpPanel.activeSelf) ShowMainMenu();
+        else ShowHelp();
     }
 
     public void ToggleARHelp()
     {
         if (ARHelpPanel != null && ARHelpPanel.activeSelf)
         {
-            // Wenn die Hilfe geschlossen wird, zurück zum AR-Modus
-            ShowObjectDetection();
+            ShowObjectDetection(isReturningFromGallery: true);
         }
         else
         {
@@ -92,27 +146,26 @@ public class UIManager : MonoBehaviour
     }
 
 
-    // --- PRIVATE HILFSFUNKTIONEN, DIE DEN ZUSTAND DER APP ÄNDERN ---
+    // =========================================================
+    //               PRIVATE STATE FUNCTIONS
+    // =========================================================
 
     private void ShowMainMenu()
     {
-        Debug.Log("Zeige Hauptmenü. Stoppe AR-Kamera und Detektion.");
+        Debug.Log("Switching to: Main Menu");
+        wasInARMode = false;
 
-        mainMenuPanel.SetActive(true);
-        objectDetectionPanel.SetActive(false);
-        galleryPanel.SetActive(false);
-        helpPanel.SetActive(false);
-        ARHelpPanel.SetActive(false);
-        PoemDisplayPanel.SetActive(false);
+        if (mainMenuPanel) mainMenuPanel.SetActive(true);
+        if (objectDetectionPanel) objectDetectionPanel.SetActive(false);
+        if (galleryPanel) galleryPanel.SetActive(false);
+        if (helpPanel) helpPanel.SetActive(false);
+        if (ARHelpPanel) ARHelpPanel.SetActive(false);
+        if (PoemDisplayPanel) PoemDisplayPanel.SetActive(false);
+        if (tutorialPanel) tutorialPanel.SetActive(false);
 
         if (arObjectDetectionManager != null) arObjectDetectionManager.enabled = false;
         if (arCameraBackground != null) arCameraBackground.enabled = false;
-
-        // Deaktiviere das Skript, um sicherzugehen, dass es keine Updates mehr verarbeitet.
-        if (objectDetectionSample != null)
-        {
-            objectDetectionSample.enabled = false;
-        }
+        if (objectDetectionSample != null) objectDetectionSample.enabled = false;
 
         if (poetryInteractionManager != null)
         {
@@ -121,89 +174,93 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Aktiviert den Objekterkennungs-Modus und startet die AR-Funktionen.
-    /// HIER IST DIE WICHTIGSTE ÄNDERUNG!
-    /// </summary>
-    private void ShowObjectDetection()
+    private void ShowObjectDetection(bool isReturningFromGallery)
     {
-        // --- NEU: Sicherheitsprüfung ---
-        // Prüfe, ob alle wichtigen Komponenten im Inspector zugewiesen sind.
-        if (objectDetectionPanel == null || objectDetectionSample == null || arObjectDetectionManager == null)
+        Debug.Log($"Switching to: Object Detection (Returning: {isReturningFromGallery})");
+
+        if (objectDetectionPanel == null) return;
+
+        wasInARMode = true;
+
+        // 1. Reset Session ONLY if starting fresh
+        if (!isReturningFromGallery)
         {
-            Debug.LogError("UIManager FEHLER: Eines der wichtigen Felder (Panel, Sample-Skript oder AR-Manager) ist im Inspector nicht zugewiesen!", this);
-            return; // Beende die Methode, um Fehler zu verhindern.
+            arSession.Reset();
+            objectDetectionSample.Initialize(arObjectDetectionManager);
         }
 
-        Debug.Log("Zeige Objekterkennung. Initialisiere und starte AR-Systeme.");
-
-        arSession.Reset();
-        // --- NEU: Die korrekte Reihenfolge ---
-        // 1. Initialisiere das Skript mit der benötigten Manager-Referenz.
-        objectDetectionSample.Initialize(arObjectDetectionManager);
-
-        // 2. Schalte alle anderen Panels aus.
+        // 2. UI States
         mainMenuPanel.SetActive(false);
         galleryPanel.SetActive(false);
         helpPanel.SetActive(false);
         ARHelpPanel.SetActive(false);
         PoemDisplayPanel.SetActive(false);
 
-        // 3. ERST JETZT aktiviere das AR-Panel und die Kamera.
-        // Das Aktivieren des GameObjects wird automatisch die 'OnEnable'-Methode
-        // im 'objectDetectionSample'-Skript aufrufen, welches jetzt vorbereitet ist.
-        if (arObjectDetectionManager != null) arObjectDetectionManager.enabled = true;
-        objectDetectionPanel.SetActive(true);
-        if (arCameraBackground != null) arCameraBackground.enabled = true;
+        objectDetectionPanel.SetActive(true); // Activate AR Panel
 
-        if (poetryInteractionManager != null)
+        // 3. Enable AR Systems
+        if (arObjectDetectionManager != null) arObjectDetectionManager.enabled = true;
+        if (arCameraBackground != null) arCameraBackground.enabled = true;
+        if (objectDetectionSample != null) objectDetectionSample.enabled = true;
+
+        // 4. Logic & Tutorial
+        if (!isReturningFromGallery)
         {
-            poetryInteractionManager.StartListening();
+            // Case A: Starting fresh -> Check if we need Tutorial
+            // Change "!PlayerPrefs.HasKey..." to "true" if you want to test it every time
+            if (tutorialPanel != null && !PlayerPrefs.HasKey(TUTORIAL_KEY))
+            {
+                tutorialPanel.SetActive(true);
+                // We do NOT start poetry listening yet. Waiting for Tutorial to finish.
+            }
+            else
+            {
+                // Fallback: Start immediately if no tutorial needed
+                if (poetryInteractionManager != null) poetryInteractionManager.StartListening();
+            }
+        }
+        else
+        {
+            // Case B: Returning from Gallery -> Resume immediately
+            if (poetryInteractionManager != null) poetryInteractionManager.StartListening();
+            if (tutorialPanel != null) tutorialPanel.SetActive(false);
         }
     }
 
     private void ShowGallery()
     {
-        Debug.Log("Zeige Galerie. Stoppe AR-Kamera und Detektion.");
+        Debug.Log("Switching to: Gallery");
 
-        mainMenuPanel.SetActive(false);
-        objectDetectionPanel.SetActive(false);
-        galleryPanel.SetActive(true);
-        helpPanel.SetActive(false);
-        ARHelpPanel.SetActive(false);
-        PoemDisplayPanel.SetActive(false);
+        if (mainMenuPanel) mainMenuPanel.SetActive(false);
+        if (objectDetectionPanel) objectDetectionPanel.SetActive(false);
+        if (galleryPanel) galleryPanel.SetActive(true);
+        if (helpPanel) helpPanel.SetActive(false);
+        if (ARHelpPanel) ARHelpPanel.SetActive(false);
+        if (PoemDisplayPanel) PoemDisplayPanel.SetActive(false);
+        if (tutorialPanel) tutorialPanel.SetActive(false);
 
+        // Pause AR
         if (arCameraBackground != null) arCameraBackground.enabled = false;
         if (objectDetectionSample != null) objectDetectionSample.enabled = false;
         if (poetryInteractionManager != null) poetryInteractionManager.StopListening();
+
+        if (photoManager != null) photoManager.RefreshGalleryUI();
     }
 
     private void ShowHelp()
     {
-        Debug.Log("Zeige Hilfe. Stoppe AR-Kamera und Detektion.");
-
+        Debug.Log("Switching to: Help");
         mainMenuPanel.SetActive(false);
         objectDetectionPanel.SetActive(false);
         galleryPanel.SetActive(false);
         helpPanel.SetActive(true);
-        ARHelpPanel.SetActive(false);
-        PoemDisplayPanel.SetActive(false);
-
-        if (arCameraBackground != null) arCameraBackground.enabled = false;
-        if (objectDetectionSample != null) objectDetectionSample.enabled = false;
-        if (poetryInteractionManager != null) poetryInteractionManager.StopListening();
+        // ... (Disable AR as above)
     }
 
     private void ShowARHelp()
     {
-        Debug.Log("Zeige AR-Hilfe. Stoppe AR-Kamera und Detektion.");
-
-        // Deaktiviere das AR-Panel, um nur die Hilfe anzuzeigen
-        objectDetectionPanel.SetActive(false);
-        ARHelpPanel.SetActive(true);
-
-        if (arCameraBackground != null) arCameraBackground.enabled = false;
-        if (objectDetectionSample != null) objectDetectionSample.enabled = false;
-        if (poetryInteractionManager != null) poetryInteractionManager.StopListening();
+        Debug.Log("Switching to: AR Help");
+        if (objectDetectionPanel) objectDetectionPanel.SetActive(false);
+        if (ARHelpPanel) ARHelpPanel.SetActive(true);
     }
 }
